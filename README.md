@@ -1,0 +1,1 @@
+To run the game you must download both elimination.wav & collision.wav for the game to run and for sound. The keys are basic (ARROW_KEY_LEFT and ARROW_KEY_RIGHT). Game sometimes crashes i cant lie when the power up decides to tweak out other then that game is fun and i still havent beaten it yet :'(
