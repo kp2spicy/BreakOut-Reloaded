@@ -11,12 +11,12 @@ screen = pygame.display.set_mode((screen_width, screen_height))  # Create game w
 pygame.display.set_caption("BreakOut Reloaded")  # Set window title
 
 # Colors
-BACKGROUND_COLOR = (30, 30, 30)  # Background color
-PADDLE_COLOR = (0, 122, 255)  # Paddle color
-BALL_COLOR = (255, 50, 50)  # Ball color
-BLOCK_COLOR = (0, 255, 0)  # Block color
-OBSTACLE_COLOR = (255, 165, 0)  # Obstacle color
+BACKGROUND_COLOR = (30, 30, 30)  # Default background color
+PADDLE_COLOR = (255, 255, 255)  # Paddle color
+BLOCK_COLOR = (255, 255, 255)  # Block color
+OBSTACLE_COLOR = (128, 128, 128)  # Obstacle color (green for visibility)
 TEXT_COLOR = (255, 255, 255)  # Text color
+POWER_UP_COLOR = (0, 0, 255)  # Pink color for power-up block
 
 # Ball properties
 ball_radius = 10  # Radius of the ball
@@ -37,9 +37,8 @@ obstacle_width = 30  # Width of each obstacle
 obstacle_height = 30  # Height of each obstacle
 
 # Power-up properties
-POWER_UP_COLOR = (0, 0, 255)  # Blue for visibility
-POWER_UP_WIDTH = 30  # Width of the power-up
-POWER_UP_HEIGHT = 30  # Height of the power-up
+POWER_UP_WIDTH = 30  # Width of the power-up block
+POWER_UP_HEIGHT = 30  # Height of the power-up block
 
 # Game objects
 ball = pygame.Rect(0, 0, ball_radius * 2, ball_radius * 2)  # Ball as a rectangle
@@ -56,11 +55,39 @@ font = pygame.font.SysFont("Arial", 24)  # Font for text
 # Clock for frame rate control
 clock = pygame.time.Clock()
 
+# Load background images
+background_image_easy = pygame.image.load("background_easy.png")
+background_image_medium = pygame.image.load("background_medium.png")
+background_image_fast = pygame.image.load("background_fast.png")
+background_image_start = pygame.image.load("background_start.png")  # Background for start screen
+background_image_game_over = pygame.image.load("background_game_over.png")  # Background for game over screen
+
+background_image_easy = pygame.transform.scale(background_image_easy, (screen_width, screen_height))  # Scale to screen size
+background_image_medium = pygame.transform.scale(background_image_medium, (screen_width, screen_height))  # Scale to screen size
+background_image_fast = pygame.transform.scale(background_image_fast, (screen_width, screen_height))  # Scale to screen size
+background_image_start = pygame.transform.scale(background_image_start, (screen_width, screen_height))  # Scale to screen size
+background_image_game_over = pygame.transform.scale(background_image_game_over, (screen_width, screen_height))  # Scale to screen size
+
 # Load sounds
 collision_sound = pygame.mixer.Sound("collision.wav")  # Sound for ball collisions
 elimination_sound = pygame.mixer.Sound("elimination.wav")  # Sound for game over
+pygame.mixer.music.load("background_music.mp3")  # Load background music
+pygame.mixer.music.set_volume(0.3)  # Set background music volume to 70%
 
+# Load ball image
+ball_image = pygame.image.load("ball_image.png")
+ball_image = pygame.transform.scale(ball_image, (ball_radius * 2, ball_radius * 2))  # Scale the image
 
+# Play background music in a loop
+pygame.mixer.music.play(-1)
+
+# Initialize pause state as False
+pause = False  # Pause state
+
+# Difficulty variable (initially set to "easy")
+difficulty = "easy"  # Default to Easy mode
+
+# Create blocks in a grid pattern
 def create_blocks():
     """Generate blocks in a grid pattern."""
     blocks.clear()  # Clear any existing blocks
@@ -70,44 +97,21 @@ def create_blocks():
             block_y = row * (block_height + 5) + 50  # Calculate block's Y-coordinate
             blocks.append(pygame.Rect(block_x, block_y, block_width, block_height))  # Add block to the list
 
-
-def create_power_up():
-    """Generate a new power-up block at a random position."""
-    while True:
-        power_up_x = random.randint(0, screen_width - POWER_UP_WIDTH)  # Random X-coordinate
-        power_up_y = random.randint(50, screen_height - 200)  # Random Y-coordinate
-        power_up_rect = pygame.Rect(power_up_x, power_up_y, POWER_UP_WIDTH, POWER_UP_HEIGHT)  # Create power-up
-        # Ensure power-up does not overlap any block or obstacle
-        if not any(power_up_rect.colliderect(block) for block in blocks) and \
-           not any(power_up_rect.colliderect(obstacle) for obstacle in obstacles):
-            return power_up_rect  # Return the new power-up
-
-
-def create_new_obstacle():
-    """Generate a new obstacle at a random position."""
-    while True:
-        obstacle_x = random.randint(0, screen_width - obstacle_width)  # Random X-coordinate
-        obstacle_y = random.randint(50, screen_height - 200)  # Random Y-coordinate
-        obstacle_rect = pygame.Rect(obstacle_x, obstacle_y, obstacle_width, obstacle_height)  # Create obstacle
-        # Ensure obstacle does not overlap any block
-        if not any(obstacle_rect.colliderect(block) for block in blocks):
-            return obstacle_rect  # Return the new obstacle
-
-
+# Randomize the ball direction and speed
 def randomize_ball_direction():
     """Randomize the initial direction and speed of the ball."""
     speed_x = random.choice([-1, 1]) * random.randint(4, 6)  # Random speed between 4-6 in a random horizontal direction
     speed_y = random.choice([-1, 1]) * random.randint(4, 6)  # Random speed between 4-6 in a random vertical direction
     return speed_x, speed_y
 
-
+# Reset the game state
 def reset_game():
     """Reset the game state."""
     global ball_speed_x, ball_speed_y, score
-    ball.x = screen_width // 2 - ball_radius  # Center the ball horizontally
-    ball.y = screen_height // 2 - ball_radius + 50  # Center the ball vertically but under blocks
+    ball.x = screen_width // 2 - ball.width // 2  # Center the ball horizontally
+    ball.y = screen_height // 2 - ball.height // 2  # Center the ball vertically
     ball_speed_x, ball_speed_y = randomize_ball_direction()  # Randomize ball direction and speed
-    paddle.x = screen_width // 2 - paddle_width // 2  # Center the paddle
+    paddle.x = screen_width // 2 - paddle.width // 2  # Center the paddle
     paddle.y = screen_height - 30  # Position the paddle near the bottom
     score = 0  # Reset score
     create_blocks()  # Generate a new grid of blocks
@@ -115,13 +119,13 @@ def reset_game():
     power_ups.clear()  # Clear existing power-ups
     extra_balls.clear()  # Clear extra balls
 
-
+# Handle collisions with paddle, blocks, and obstacles
 def handle_collision():
     """Handle collisions of the ball with the paddle, blocks, and obstacles."""
     global ball_speed_x, ball_speed_y, score
     if ball.colliderect(paddle):  # Check collision with paddle
         ball_speed_y = -abs(ball_speed_y)  # Ensure ball bounces upwards
-        ball_speed_x += (ball.centerx - paddle.centerx) / (paddle_width / 2) * 2  # Horizontal reflection based on paddle hit
+        ball_speed_x += (ball.centerx - paddle.centerx) / (paddle.width / 2) * 2  # Horizontal reflection based on paddle hit
         collision_sound.play()
 
     for block in blocks[:]:  # Check collision with blocks
@@ -146,94 +150,84 @@ def handle_collision():
             collision_sound.play()  # Play collision sound
             break
 
+# Generate a new obstacle at a random position
+def create_new_obstacle():
+    """Generate a new obstacle at a random position."""
+    while True:
+        obstacle_x = random.randint(0, screen_width - obstacle_width)  # Random X-coordinate
+        obstacle_y = random.randint(50, screen_height - 200)  # Random Y-coordinate
+        obstacle_rect = pygame.Rect(obstacle_x, obstacle_y, obstacle_width, obstacle_height)  # Create obstacle
+        # Ensure obstacle does not overlap any block
+        if not any(obstacle_rect.colliderect(block) for block in blocks):
+            return obstacle_rect  # Return the new obstacle
 
+# Create a new power-up at a random position (colored block instead of image)
+def create_power_up():
+    """Generate a new power-up block at a random position."""
+    while True:
+        power_up_x = random.randint(0, screen_width - POWER_UP_WIDTH)  # Random X-coordinate
+        power_up_y = random.randint(50, screen_height - 200)  # Random Y-coordinate
+        power_up_rect = pygame.Rect(power_up_x, power_up_y, POWER_UP_WIDTH, POWER_UP_HEIGHT)  # Create power-up
+        return power_up_rect  # Return the new power-up
+
+# Handle power-up collision
 def handle_power_up_collision():
     """Check if the ball collides with a power-up and spawn an extra ball."""
     global ball_speed_x, ball_speed_y
     for power_up in power_ups[:]:
         if ball.colliderect(power_up):  # Check collision with main ball
             power_ups.remove(power_up)  # Remove the power-up
-            # Create a new ball with randomized direction
-            speed_x, speed_y = randomize_ball_direction()
-            extra_ball = pygame.Rect(ball.x, ball.y, ball_radius * 2, ball_radius * 2)
-            extra_balls.append({"rect": extra_ball, "speed_x": speed_x, "speed_y": speed_y})
+            # Make the ball 3x faster
+            ball_speed_x *= 3
+            ball_speed_y *= 3
 
-
-def update_extra_balls():
-    """Update positions of extra balls and handle their collisions."""
-    for extra_ball in extra_balls[:]:
-        ball_rect = extra_ball["rect"]
-        ball_rect.x += extra_ball["speed_x"]
-        ball_rect.y += extra_ball["speed_y"]
-
-        # Bounce off walls
-        if ball_rect.x <= 0 or ball_rect.x >= screen_width - ball_radius * 2:
-            extra_ball["speed_x"] *= -1
-        if ball_rect.y <= 0:
-            extra_ball["speed_y"] *= -1
-        if ball_rect.y >= screen_height:  # Remove ball if it falls below the screen
-            extra_balls.remove(extra_ball)
-
-        # Handle collisions for extra balls
-        if ball_rect.colliderect(paddle):
-            extra_ball["speed_y"] = -abs(extra_ball["speed_y"])
-        for block in blocks[:]:
-            if ball_rect.colliderect(block):
-                blocks.remove(block)
-                score += 10
-                extra_ball["speed_x"] *= -1
-                extra_ball["speed_y"] *= -1
-                break
-        for obstacle in obstacles[:]:
-            if ball_rect.colliderect(obstacle):
-                obstacles.remove(obstacle)
-                obstacles.append(create_new_obstacle())
-                score += 5
-                extra_ball["speed_x"] *= -1
-                extra_ball["speed_y"] *= -1
-                break
-
-
-def draw():
-    """Draw all game elements on the screen."""
-    screen.fill(BACKGROUND_COLOR)
-    pygame.draw.rect(screen, PADDLE_COLOR, paddle)
-    pygame.draw.ellipse(screen, BALL_COLOR, ball)
-    for extra_ball in extra_balls:
-        pygame.draw.ellipse(screen, BALL_COLOR, extra_ball["rect"])
-    for block in blocks:
-        pygame.draw.rect(screen, BLOCK_COLOR, block)
-    for obstacle in obstacles:
-        pygame.draw.rect(screen, OBSTACLE_COLOR, obstacle)
-    for power_up in power_ups:
-        pygame.draw.rect(screen, POWER_UP_COLOR, power_up)
-    score_text = font.render(f"Score: {score}", True, TEXT_COLOR)
-    screen.blit(score_text, (10, 10))
-    pygame.display.flip()
-
-
+# Show the start screen and allow the user to pick a mode
 def show_start_screen():
-    """Display the start screen."""
+    """Display the start screen with mode selection."""
+    global ball_speed_x, ball_speed_y, difficulty
     while True:
         screen.fill(BACKGROUND_COLOR)  # Fill background
-        title_text = font.render("Ball Breaker Game", True, TEXT_COLOR)  # Game title text
-        play_text = font.render("Press SPACE to Play", True, TEXT_COLOR)  # Instruction text
-        screen.blit(title_text, (screen_width // 2 - title_text.get_width() // 2, screen_height // 2 - 50))
-        screen.blit(play_text, (screen_width // 2 - play_text.get_width() // 2, screen_height // 2 + 10))
-        pygame.display.flip()  # Update display
+        screen.blit(background_image_start, (0, 0))  # Show start screen background
+        title_text = font.render("BreakOut Reloaded", True, TEXT_COLOR)  # Game title text
+        easy_text = font.render("Press 1 for Easy", True, TEXT_COLOR)
+        medium_text = font.render("Press 2 for Medium", True, TEXT_COLOR)
+        fast_text = font.render("Press 3 for Fast", True, TEXT_COLOR)
+
+        screen.blit(title_text, (screen_width // 2 - title_text.get_width() // 2, screen_height // 2 - 100))
+        screen.blit(easy_text, (screen_width // 2 - easy_text.get_width() // 2, screen_height // 2 - 50))
+        screen.blit(medium_text, (screen_width // 2 - medium_text.get_width() // 2, screen_height // 2))
+        screen.blit(fast_text, (screen_width // 2 - fast_text.get_width() // 2, screen_height // 2 + 50))
+
+        pygame.display.flip()
+
         for event in pygame.event.get():
-            if event.type == pygame.QUIT:  # Quit game
+            if event.type == pygame.QUIT:
                 pygame.quit()
                 exit()
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:  # Start game
-                return
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_1:
+                    difficulty = "easy"
+                    ball_speed_x = 3
+                    ball_speed_y = -3
+                    return
+                elif event.key == pygame.K_2:
+                    difficulty = "medium"
+                    ball_speed_x = 5
+                    ball_speed_y = -5
+                    return
+                elif event.key == pygame.K_3:
+                    difficulty = "fast"
+                    ball_speed_x = 7
+                    ball_speed_y = -7
+                    return
 
-
+# Show the game over screen
 def show_game_over_screen():
     """Display the game over screen."""
     elimination_sound.play()  # Play game over sound
     while True:
         screen.fill(BACKGROUND_COLOR)  # Fill background
+        screen.blit(background_image_game_over, (0, 0))  # Show game over background
         game_over_text = font.render("Game Over", True, TEXT_COLOR)  # Game over text
         score_text = font.render(f"Final Score: {score}", True, TEXT_COLOR)  # Final score text
         replay_text = font.render("Press R to Replay or Q to Quit", True, TEXT_COLOR)  # Replay instructions
@@ -251,39 +245,85 @@ def show_game_over_screen():
                 if event.key == pygame.K_q:  # Quit game
                     return False
 
-
+# Main game loop
 def main():
     """Main game loop."""
-    global ball_speed_x, ball_speed_y
+    global ball_speed_x, ball_speed_y, pause, score, difficulty
     reset_game()
     running = True
     while running:
         clock.tick(60)
+        if difficulty == "easy":
+            screen.blit(background_image_easy, (0, 0))  # Draw the background first
+        elif difficulty == "medium":
+            screen.blit(background_image_medium, (0, 0))  # Draw the background first
+        elif difficulty == "fast":
+            screen.blit(background_image_fast, (0, 0))  # Draw the background first
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_p:  # Pause when 'P' is pressed
+                    pause = not pause
+
+        if pause:
+            # Display Pause Text
+            pause_text = font.render("PAUSED", True, TEXT_COLOR)
+            screen.blit(pause_text, (screen_width // 2 - pause_text.get_width() // 2, screen_height // 2))
+            pygame.display.flip()
+            continue  # Skip the rest of the game loop to maintain the pause screen
+
+        # Handle paddle movement
         keys = pygame.key.get_pressed()
         if keys[pygame.K_LEFT] and paddle.x > 0:
-            paddle.x -= paddle_speed
-        if keys[pygame.K_RIGHT] and paddle.x < screen_width - paddle_width:
-            paddle.x += paddle_speed
+            paddle.x -= 8
+        if keys[pygame.K_RIGHT] and paddle.x < screen_width - paddle.width:
+            paddle.x += 8
+
+        # Move ball
         ball.x += ball_speed_x
         ball.y += ball_speed_y
-        if ball.x <= 0 or ball.x >= screen_width - ball_radius * 2:
+
+        # Ball collision with walls
+        if ball.x <= 0 or ball.x >= screen_width - ball.width:
             ball_speed_x *= -1
         if ball.y <= 0:
             ball_speed_y *= -1
-        if ball.y >= screen_height:
+        if ball.y >= screen_height:  # Game Over when ball falls below the screen
             if not show_game_over_screen():
                 running = False
             else:
                 reset_game()
+
         handle_collision()
         handle_power_up_collision()
-        update_extra_balls()
-        draw()
+
+        # Draw ball and paddle
+        screen.blit(ball_image, (ball.x, ball.y))  # Ball
+        pygame.draw.rect(screen, PADDLE_COLOR, paddle)  # Paddle
+
+        # Draw blocks
+        for block in blocks:
+            pygame.draw.rect(screen, BLOCK_COLOR, block)
+
+        # Draw obstacles (this is the key fix)
+        for obstacle in obstacles:
+            pygame.draw.rect(screen, OBSTACLE_COLOR, obstacle)
+
+        # Draw power-ups as colored blocks
+        for power_up in power_ups:
+            pygame.draw.rect(screen, POWER_UP_COLOR, power_up)
+
+        # Draw score
+        score_text = font.render(f"Score: {score}", True, TEXT_COLOR)
+        screen.blit(score_text, (10, 10))
+
+        pygame.display.flip()
+
     pygame.quit()
 
 # Start the game
-show_start_screen()
+show_start_screen()  # Show the start screen and mode selection
+reset_game()  # Initialize game state
 main()
